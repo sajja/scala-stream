@@ -4,11 +4,18 @@ import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.common.{EntityStreamingSupport, JsonEntityStreamingSupport}
+import akka.http.scaladsl.model.{HttpCharsets, HttpEntity, HttpResponse, MediaTypes}
 import akka.http.scaladsl.server.Directives._
-import akka.stream.ActorMaterializer
+import akka.stream.{ActorMaterializer, ThrottleMode}
 import akka.stream.scaladsl.Source
+import akka.util.ByteString
+
+import scala.concurrent.duration.DurationInt
+import akka.http.scaladsl.model.ContentTypes._
 
 import scala.io.StdIn
+import scala.collection.immutable
+import scala.util.Random
 
 /**
   * Created by sajith on 5/30/17.
@@ -19,10 +26,24 @@ object ApiServer extends App with UserProtocol {
   implicit val executionContext = system.dispatcher
 
 
-  def loadUsers: Stream[User] = Stream.cons(UserFactory.createUser(), {
-    Thread.sleep(10)
-    loadUsers
-  })
+  def loadUsers(): Source[User, NotUsed] = {
+    Source {
+      new immutable.Iterable[User] {
+        override def iterator: Iterator[User] = new Iterator[User] {
+          val ran = Random
+
+          override def hasNext: Boolean = true
+
+          override def next(): User = {
+            val i = Random.nextInt
+            val user = User(s"user$i", s"$i")
+            println(user)
+            user
+          }
+        }
+      }
+    }
+  }
 
   implicit val jsonStreamingSupport: JsonEntityStreamingSupport = EntityStreamingSupport.json()
     .withParallelMarshalling(parallelism = 10, unordered = false)
@@ -30,12 +51,13 @@ object ApiServer extends App with UserProtocol {
   // (fake) async database query api
   def dummyUser(id: String) = User(s"User $id", id.toString)
 
-  def fetchUsers(): Source[User, NotUsed] = Source(loadUsers)
+  def fetchUsers(): Source[User, NotUsed] = loadUsers
 
   val route =
     pathPrefix("users") {
       get {
-        complete(fetchUsers())
+        complete(HttpResponse(entity=HttpEntity.Chunked(MediaTypes.`text/plain` withCharset HttpCharsets.`UTF-8`,
+          fetchUsers().map(i=>ByteString(i.toString+"\n")))))
       }
     }
 

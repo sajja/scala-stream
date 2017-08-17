@@ -18,16 +18,15 @@ object Intermidator {
     implicit val system = ActorSystem("QuickStart")
     implicit val materializer = ActorMaterializer()
 
-    val req = HttpRequest(uri = "http://localhost:8080/users")
-    val reqFuture = Http().singleRequest(req)
-
-    val logLinesStreamFuture: Future[Source[String, Any]] = reqFuture.map {
-      response => response.entity.dataBytes.map(_.utf8String)
-    }
-
 
     val route =
       get {
+        val req = HttpRequest(uri = "http://localhost:8080/users")
+        val reqFuture = Http().singleRequest(req)
+
+        val logLinesStreamFuture: Future[Source[String, Any]] = reqFuture.map {
+          response => response.entity.dataBytes.map(_.utf8String)
+        }
         onSuccess(logLinesStreamFuture) { stream ⇒
           complete {
             HttpResponse(
