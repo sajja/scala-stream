@@ -46,8 +46,6 @@ class DataPublisher extends ActorPublisher[Int] {
     case other =>
       println(s"got other $other")
   }
-
-
 }
 
 object DataPublisher {
@@ -76,12 +74,13 @@ object ActorStreamExample extends App {
 
   val tweets: Source[Tweet, NotUsed] = Source(new immutable.Iterable[Tweet] {
     var i = 0
+
     override def iterator: Iterator[Tweet] = new Iterator[Tweet] {
       override def hasNext: Boolean = i != 100
 
       override def next(): Tweet = {
-//        Thread.sleep(100)
-        i = i+1
+        //        Thread.sleep(100)
+        i = i + 1
         println(s"producing $i")
         Tweet(i)
       }
@@ -189,7 +188,7 @@ object ActorStreamExample extends App {
     val i = Sink.fromSubscriber(
       new Subscriber[Tweet] {
         var sub: Subscription = _
-        var i = 10
+        var i1 = 10
 
         override def onError(t: Throwable): Unit = ???
 
@@ -197,7 +196,7 @@ object ActorStreamExample extends App {
 
         override def onNext(t: Tweet): Unit = {
           println(s"Consumed $t")
-//          Thread.sleep(100)
+          //          Thread.sleep(100)
           sub.request(1) //demands one more from stream.
         }
 
@@ -206,7 +205,7 @@ object ActorStreamExample extends App {
           s.request(1) //initial demand
         }
       })
-    tweets.buffer(2,OverflowStrategy.dropTail).toMat(i)(Keep.right).run()
+    tweets.async.buffer(2, OverflowStrategy.dropTail).toMat(i)(Keep.right).run()
   }
 
   /**
@@ -225,12 +224,13 @@ object ActorStreamExample extends App {
       override def run(): Unit = {
         while (true) {
           dataPublisherRef ! rand.nextInt().toString
-          Thread.sleep(10)
+          Thread.sleep(500)
         }
       }
     }
-    val t = new Thread(r)
-    t.start()
+
+    //    val t = new Thread(r)
+    //    t.start()
 
     Source.fromPublisher(dataPublisher).map(_ * 2).runWith(Sink.foreach(s => {
       Thread.sleep(1000)
@@ -238,5 +238,18 @@ object ActorStreamExample extends App {
     }))
   }
 
-  slowConsumerWithOverflow()
+
+  def testAsync() = {
+    val source: Source[Int, NotUsed] = Source(1 to 20000000).async
+    source.runWith(Sink.foreach(i => {
+      Thread.sleep(100)
+      println(i)
+    }
+
+    ))
+
+  }
+
+//  testAsync()
+  subscriberCreatesDemand()
 }
