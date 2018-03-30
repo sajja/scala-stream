@@ -22,5 +22,10 @@ libraryDependencies ++= Seq(
   "io.spray" %% "spray-json" % "1.3.1",
   "org.jsoup" % "jsoup" % "1.8.1",
   "io.spray" %% "spray-testkit" % sprayVersion % "test",
+  "com.typesafe.slick" %% "slick" % "3.0.0",
+  "org.slf4j" % "slf4j-nop" % "1.6.4",
+  "postgresql" % "postgresql" % "9.1-901.jdbc4",
+  "com.googlecode.flyway" % "flyway-core" % "2.1.1",
+  "c3p0" % "c3p0" % "0.9.0.4",
   "org.scalatest" % "scalatest_2.11" % "2.2.2" % "test"
 )

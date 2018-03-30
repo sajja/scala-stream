@@ -6,10 +6,11 @@ import akka.NotUsed
 import akka.actor.{ActorSystem, Props}
 import akka.stream._
 import akka.stream.actor.ActorPublisher
-import akka.stream.scaladsl.{Broadcast, FileIO, Flow, GraphDSL, Keep, Merge, RunnableGraph, Sink, Source}
+import akka.stream.scaladsl.{Broadcast, FileIO, Flow, GraphDSL, Keep, Merge, Partition, RunnableGraph, Sink, Source}
 import akka.util.ByteString
 import org.reactivestreams.{Subscriber, Subscription}
 
+import scala.collection
 import scala.collection.immutable
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -43,6 +44,56 @@ object MyExamples {
 
       in ~> f1 ~> bcast ~> f2 ~> merge ~> f3 ~> out
       bcast ~> f4 ~> merge
+      ClosedShape
+    }).run()
+  }
+
+  case class Doc(id: Int, endpoint: String)
+
+  def generateDoc() = {
+    val allEndPoints = List("21G", "BASWARE", "1stBP", "HansaPrint")
+    Doc(Random.nextInt(1000), allEndPoints(Random.nextInt(3)))
+  }
+
+  def delivery():Unit = {
+    val g = RunnableGraph.fromGraph(GraphDSL.create() { implicit builder: GraphDSL.Builder[NotUsed] =>
+      import GraphDSL.Implicits._
+
+      val input = Source.fromIterator(() => collection.Iterator.continually[Doc] {
+        Thread.sleep(100)
+        generateDoc()
+      })
+
+      val twg = Sink.foreach[Doc](x => println(s"TWG stream $x)"))
+      val bw = Sink.foreach[Doc](x => println(s"BW steam $x"))
+      val bp = Sink.foreach[Doc](x => println(s"BP steam $x"))
+      val hp = Sink.foreach[Doc](x => println(s"HP steam $x"))
+      val other = Sink.foreach[Doc](x => println(s"Other steam $x"))
+
+      val batcher = Flow[Doc].map(x => x)
+      //      val merge = builder.add(Merge[Int](1))
+
+      val endpoint = builder.add(Partition[Doc](5, doc => doc.endpoint match {
+        case "21G" =>
+          0
+        case "BASWARE" =>
+          1
+        case "1stBP" =>
+          2
+        case "HansaPrint" =>
+          3
+        case _ =>
+          4
+      }))
+
+      input ~> endpoint.in
+
+      endpoint.out(0) ~> batcher
+      endpoint.out(1) ~> bw
+      endpoint.out(2) ~> bp
+      endpoint.out(3) ~> hp
+      endpoint.out(4) ~> other
+
       ClosedShape
     }).run()
   }
@@ -86,7 +137,7 @@ object MyExamples {
       .groupedWithin(10, 1 seconds) //takes a micro batch every second
       .map(imps => imps.map(imp => (imp.adName, 1)).groupBy(_._1).mapValues(_.size) //reduce the batch and combine result
       .filter(imp => imp._2 > 3) //Take only suspicious ads
-      .map(imp => Event("IMPRESSION", imp._1, imp._2))//Transform to a common format
+      .map(imp => Event("IMPRESSION", imp._1, imp._2)) //Transform to a common format
     )
 
     val cs = clicks()
@@ -94,7 +145,7 @@ object MyExamples {
       .groupedWithin(10, 1 seconds) //take a micro batch each second
       .map(imps => imps.map(imp => (imp.adName, 1)).groupBy(_._1).mapValues(_.size) //reduce batch combine result
       .filter(click => click._2 > 3) //Take only suspicious ads
-      .map(click => Event("CLICK", click._1, click._2))//Transform to common format
+      .map(click => Event("CLICK", click._1, click._2)) //Transform to common format
     )
 
     //    is.runForeach(println)
@@ -136,7 +187,7 @@ object MyExamples {
   }
 
   def main(args: Array[String]): Unit = {
-    t4()
+    delivery()
   }
 
   def ccTransactions() = Source.fromIterator(() => Iterator.continually((Random.nextInt(10), Random.nextInt(500))))
