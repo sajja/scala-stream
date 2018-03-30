@@ -55,23 +55,37 @@ object MyExamples {
     Doc(Random.nextInt(1000), allEndPoints(Random.nextInt(3)))
   }
 
-  def delivery():Unit = {
+  def delivery2(): Unit = {
     val g = RunnableGraph.fromGraph(GraphDSL.create() { implicit builder: GraphDSL.Builder[NotUsed] =>
       import GraphDSL.Implicits._
-
       val input = Source.fromIterator(() => collection.Iterator.continually[Doc] {
         Thread.sleep(100)
         generateDoc()
       })
 
+      val batcher = Flow[Doc].map(x => x).grouped(12)
+      val sink = Sink.foreach(println)
+
+      input ~> batcher ~> sink
+
+      ClosedShape
+    }).run()
+  }
+
+  def delivery(): Unit = {
+    val g = RunnableGraph.fromGraph(GraphDSL.create() { implicit builder: GraphDSL.Builder[NotUsed] =>
+      import GraphDSL.Implicits._
+      val input = Source.fromIterator(() => collection.Iterator.continually[Doc] {
+        Thread.sleep(100)
+        generateDoc()
+      })
       val twg = Sink.foreach[Doc](x => println(s"TWG stream $x)"))
       val bw = Sink.foreach[Doc](x => println(s"BW steam $x"))
       val bp = Sink.foreach[Doc](x => println(s"BP steam $x"))
       val hp = Sink.foreach[Doc](x => println(s"HP steam $x"))
       val other = Sink.foreach[Doc](x => println(s"Other steam $x"))
 
-      val batcher = Flow[Doc].map(x => x)
-      //      val merge = builder.add(Merge[Int](1))
+      val batcher = Flow[Doc].map(x => x).grouped(30)
 
       val endpoint = builder.add(Partition[Doc](5, doc => doc.endpoint match {
         case "21G" =>
@@ -87,8 +101,9 @@ object MyExamples {
       }))
 
       input ~> endpoint.in
+      val sink = Sink.foreach(println)
 
-      endpoint.out(0) ~> batcher
+      endpoint.out(0) ~> batcher ~> sink
       endpoint.out(1) ~> bw
       endpoint.out(2) ~> bp
       endpoint.out(3) ~> hp
